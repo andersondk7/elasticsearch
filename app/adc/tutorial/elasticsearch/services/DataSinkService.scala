@@ -3,9 +3,10 @@ package adc.tutorial.elasticsearch.services
 import java.io.Writer
 
 import adc.tutorial.elasticsearch.model.Movie
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.{Done, NotUsed}
 import akka.stream.scaladsl.{Flow, Keep, Sink}
+import com.sksamuel.elastic4s.ElasticsearchClientUri
 import com.sksamuel.elastic4s.bulk.BulkCompatibleDefinition
 import com.sksamuel.elastic4s.http.HttpClient
 import com.sksamuel.elastic4s.http.bulk.BulkResponseItem
@@ -64,7 +65,33 @@ class DataSinkService {
   def toCount()(implicit actorSystem: ActorSystem): Sink[Movie, Future[Int]] = {
     Sink.fold(0){ (s,m) => s+1}
   }
+
+  def toCountActor()(implicit actorSystem: ActorSystem): Sink[Movie, Future[Int]] = {
+    val p = Promise[Int]()
+    Sink.actorRefWithAck[Movie](
+      ref = actorSystem.actorOf(CounterSinkActor.props(p))
+      , onInitMessage=StreamMessages.Init
+      , ackMessage=StreamMessages.Ack
+      , onCompleteMessage=StreamMessages.Complete
+    ).mapMaterializedValue(m => {
+      p.future
+    })
+  }
+
+  def toIndexer(uri: ElasticsearchClientUri)(implicit actorSystem: ActorSystem): Sink[Movie, Future[Int]] = {
+    val p = Promise[Int]()
+    Sink.actorRefWithAck[Movie](
+      ref = actorSystem.actorOf(SingleIndexerSinkActor.props(uri, p))
+      , onInitMessage=StreamMessages.Init
+      , ackMessage=StreamMessages.Ack
+      , onCompleteMessage=StreamMessages.Complete
+    ).mapMaterializedValue(m => {
+      p.future
+    })
+  }
 }
 
 object DataSinkService {
 }
+
+

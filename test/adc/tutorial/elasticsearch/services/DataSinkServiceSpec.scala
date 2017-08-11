@@ -148,7 +148,9 @@ class DataSinkServiceSpec extends FunSpec with Matchers {
   }
 
   describe("a DataSinkService elasticsearch sink") {
-    val max = 20
+    val wait = 5 seconds
+    val max = 5
+    val source: Source[JsValue, NotUsed] = sourceService.fromIterator(max)
     def buildGraph(sink: Sink[Movie, Future[Int]]): Graph[ClosedShape, Future[Int]] = {
       var count = 0
       val offset = 3
@@ -160,24 +162,54 @@ class DataSinkServiceSpec extends FunSpec with Matchers {
             println(s"parsed id:${m.id} - $count")
             m
           })
-          sourceService.fromIterator(max) ~> movieCountFlow ~> s
+          source ~> movieCountFlow ~> s
           ClosedShape
       }
     }
-    it ("should write data to elasticsearch using an http client") {
-      val httpClient = HttpClient(ElasticsearchClientUri("localhost", 9200))
-      val graph = buildGraph(sinkService.toElasticSearch(httpClient))
-      val result = Await.result(RunnableGraph.fromGraph(graph).run, 20 seconds)
-      println(s"done after $result")
-      httpClient.close()
-      println(s"closed")
+//    it ("should write data to elasticsearch using an http client") {
+//      val httpClient = HttpClient(ElasticsearchClientUri("localhost", 9200))
+//      val graph = buildGraph(sinkService.toElasticSearch(httpClient))
+//      val result = Await.result(RunnableGraph.fromGraph(graph).run, wait)
+//      println(s"done after $result")
+//      httpClient.close()
+//      println(s"closed")
+//      result shouldBe max
+//    }
+
+  }
+
+  describe("a DataSinkService actor sinks") {
+    val wait = 5 seconds
+    val max = 5
+    val source: Source[JsValue, NotUsed] = sourceService.fromIterator(max)
+    def buildGraph(sink: Sink[Movie, Future[Int]]): Graph[ClosedShape, Future[Int]] = {
+      var count = 0
+      val offset = 3
+      GraphDSL.create(sink) {
+        implicit builder: GraphDSL.Builder[Future[Int]] => s =>
+          val movieCountFlow: Flow[JsValue, Movie, NotUsed] = Flow[JsValue].map[Movie](j => {
+            val m = Movie.fromMovieDbJson(j)
+            count = count + 1
+            actorSystem.log.info(s"parsed: ${m.id} - count: $count")
+            m
+          })
+          source ~> movieCountFlow ~> s
+          ClosedShape
+      }
+    }
+    it ("should count data from the source") {
+      val graph = buildGraph(sinkService.toCountActor())
+      val result = Await.result( RunnableGraph.fromGraph(graph).run, wait)
+      actorSystem.log.info(s"done after $result")
+      actorSystem.log.info(s"closed")
       result shouldBe max
     }
 
-    it ("should read data from file") {
-      val graph = buildGraph(sinkService.toCount)
-      val result = Await.result(RunnableGraph.fromGraph(graph).run, 20 seconds)
-      println(s"done after $result")
+    it ("should index movies one by one") {
+      val uri = ElasticsearchClientUri("localhost", 9200)
+      val graph = buildGraph(sinkService.toIndexer(uri))
+      val result = Await.result(RunnableGraph.fromGraph(graph).run, wait)
+      actorSystem.log.info(s"done after $result")
       result shouldBe max
     }
   }
