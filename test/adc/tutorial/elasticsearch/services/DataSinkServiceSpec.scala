@@ -179,9 +179,9 @@ class DataSinkServiceSpec extends FunSpec with Matchers {
   }
 
   describe("a DataSinkService actor sinks") {
-    val wait = 5 seconds
-    val max = 5
-    val source: Source[JsValue, NotUsed] = sourceService.fromIterator(max)
+    val wait = 2 minutes
+    val max = 500
+    val source: Source[JsValue, NotUsed] = sourceService.fromFile(3,max)
     def buildGraph(sink: Sink[Movie, Future[Int]]): Graph[ClosedShape, Future[Int]] = {
       var count = 0
       val offset = 3
@@ -208,8 +208,13 @@ class DataSinkServiceSpec extends FunSpec with Matchers {
     it ("should index movies one by one") {
       val uri = ElasticsearchClientUri("localhost", 9200)
       val graph = buildGraph(sinkService.toIndexer(uri))
+      val start = System.currentTimeMillis()
       val result = Await.result(RunnableGraph.fromGraph(graph).run, wait)
       actorSystem.log.info(s"done after $result")
+      val end = System.currentTimeMillis()
+      val elapsedSeconds: Double = (end - start).toDouble/1000
+      val elementsPerSecond: Double = max.toDouble/elapsedSeconds
+      println(s"finished in $elapsedSeconds seconds, elementsPerSecond: $elementsPerSecond")
       result shouldBe max
     }
   }

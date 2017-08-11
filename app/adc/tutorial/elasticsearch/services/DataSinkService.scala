@@ -68,6 +68,7 @@ class DataSinkService {
 
   def toCountActor()(implicit actorSystem: ActorSystem): Sink[Movie, Future[Int]] = {
     val p = Promise[Int]()
+
     Sink.actorRefWithAck[Movie](
       ref = actorSystem.actorOf(CounterSinkActor.props(p))
       , onInitMessage=StreamMessages.Init
