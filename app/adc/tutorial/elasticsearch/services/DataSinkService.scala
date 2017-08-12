@@ -90,6 +90,18 @@ class DataSinkService {
       p.future
     })
   }
+
+  def toBulkIndexer(uri: ElasticsearchClientUri, bufferSize: Int)(implicit actorSystem: ActorSystem): Sink[Movie, Future[Int]] = {
+    val p = Promise[Int]()
+    Sink.actorRefWithAck[Movie](
+      ref = actorSystem.actorOf(BulkIndexerSinkActor.props(uri, p, bufferSize))
+      , onInitMessage=StreamMessages.Init
+      , ackMessage=StreamMessages.Ack
+      , onCompleteMessage=StreamMessages.Complete
+    ).mapMaterializedValue(m => {
+      p.future
+    })
+  }
 }
 
 object DataSinkService {

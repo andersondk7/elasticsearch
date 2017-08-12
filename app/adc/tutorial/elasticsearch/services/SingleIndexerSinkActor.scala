@@ -4,11 +4,9 @@ import adc.tutorial.elasticsearch.model.Movie
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.pipe
 import com.sksamuel.elastic4s.ElasticsearchClientUri
-import com.sksamuel.elastic4s.bulk.BulkCompatibleDefinition
-import com.sksamuel.elastic4s.http.HttpClient
 import com.sksamuel.elastic4s.http.ElasticDsl._
+import com.sksamuel.elastic4s.http.HttpClient
 import com.sksamuel.elastic4s.http.index.IndexResponse
-import com.sksamuel.elastic4s.streams.RequestBuilder
 
 import scala.concurrent.{Future, Promise}
 
@@ -16,8 +14,8 @@ class SingleIndexerSinkActor(
                               client: HttpClient
                               , complete: Promise[Int]
                             ) extends Actor with ActorLogging {
-  import StreamMessages._
   import SingleIndexerSinkActor._
+  import StreamMessages._
   implicit val ec = context.dispatcher
 
   override def unhandled(message: Any): Unit = {
